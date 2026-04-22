@@ -2,14 +2,16 @@ import Link from "next/link";
 import { requireShop } from "@/lib/require-shop";
 import { AppShell } from "@/components/shell/app-shell";
 import { countLowStock, listProducts } from "@/app/inventory/queries";
+import { todaysSalesSummary } from "@/app/pos/queries";
 import { formatPKR } from "@shopos/core";
 
 export default async function DashboardPage() {
   const { session, membership } = await requireShop();
 
-  const [products, lowCount] = await Promise.all([
+  const [products, lowCount, today] = await Promise.all([
     listProducts(membership.shopId, {}),
     countLowStock(membership.shopId),
+    todaysSalesSummary(membership.shopId),
   ]);
 
   const activeProducts = products.filter((p) => p.isActive);
@@ -26,9 +28,14 @@ export default async function DashboardPage() {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Today's sales"
+            value={formatPKR(today.total)}
+            note={`${today.count} bill${today.count === 1 ? "" : "s"} · cash ${formatPKR(today.cash)}`}
+            href="/pos"
+          />
           <StatCard title="Products" value={activeProducts.length.toLocaleString("en-PK")} href="/inventory" />
-          <StatCard title="Units in stock" value={totalUnits.toLocaleString("en-PK")} />
-          <StatCard title="Stock value" value={formatPKR(stockValue)} />
+          <StatCard title="Stock value" value={formatPKR(stockValue)} note={`${totalUnits.toLocaleString("en-PK")} units`} />
           <StatCard
             title="Needs reorder"
             value={lowCount.toLocaleString("en-PK")}
@@ -110,11 +117,13 @@ export default async function DashboardPage() {
 function StatCard({
   title,
   value,
+  note,
   accent,
   href,
 }: {
   title: string;
   value: string;
+  note?: string;
   accent?: boolean;
   href?: string;
 }) {
@@ -138,6 +147,9 @@ function StatCard({
       >
         {value}
       </p>
+      {note ? (
+        <p className={`mt-1 text-xs ${accent ? "text-amber-800" : "text-slate-500"}`}>{note}</p>
+      ) : null}
     </div>
   );
   return href ? <Link href={href}>{body}</Link> : body;

@@ -77,3 +77,23 @@ html, body {
 /* Hide scrollbar but keep scrolling (POS lists on mobile) */
 .scrollbar-none::-webkit-scrollbar { display: none; }
 .scrollbar-none { scrollbar-width: none; }
+
+/*
+ * Print: the receipt page renders edge-to-edge, no app chrome, 80mm-friendly.
+ * Media queries target both 80mm thermal and A4. On browsers with "Save as
+ * PDF" destination, this becomes the downloadable invoice.
+ */
+@media print {
+  @page { margin: 10mm; }
+  body { background: #fff !important; color: #000 !important; font-size: 11pt; }
+  /* Receipt takes the full width of the page */
+  article { max-width: 100% !important; }
+}
+/* 80mm thermal roll (≈ 72mm printable) */
+@media print and (max-width: 80mm) {
+  @page { size: 72mm auto; margin: 2mm; }
+  body { font-size: 9pt; }
+  h1 { font-size: 11pt !important; }
+  article { padding: 0 !important; }
+  table { font-size: 9pt; }
+}

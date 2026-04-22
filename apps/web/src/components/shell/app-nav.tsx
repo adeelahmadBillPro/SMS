@@ -12,9 +12,9 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { label: "Dashboard", href: "/dashboard" },
+  { label: "POS", href: "/pos" },
   { label: "Inventory", href: "/inventory" },
-  { label: "POS", href: "/pos", soon: true },
-  { label: "Customers", href: "/customers", soon: true },
+  { label: "Customers", href: "/customers" },
   { label: "Reports", href: "/reports", soon: true },
   { label: "Closing", href: "/closing", soon: true },
   { label: "Settings", href: "/settings", soon: true },
