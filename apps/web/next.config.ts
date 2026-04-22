@@ -24,7 +24,7 @@ const config: NextConfig = {
   outputFileTracingRoot: path.join(__dirname, "../../"),
 
   // Workspace packages emit raw TS; Next transpiles them.
-  transpilePackages: ["@shopos/db"],
+  transpilePackages: ["@shopos/db", "@shopos/core"],
 };
 
 export default config;

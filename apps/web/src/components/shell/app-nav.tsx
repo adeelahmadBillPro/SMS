@@ -12,8 +12,8 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { label: "Dashboard", href: "/dashboard" },
+  { label: "Inventory", href: "/inventory" },
   { label: "POS", href: "/pos", soon: true },
-  { label: "Inventory", href: "/inventory", soon: true },
   { label: "Customers", href: "/customers", soon: true },
   { label: "Reports", href: "/reports", soon: true },
   { label: "Closing", href: "/closing", soon: true },
