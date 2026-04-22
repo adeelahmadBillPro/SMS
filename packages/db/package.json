@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "prisma generate",
-    "lint": "echo 'TODO M3: eslint'",
+    "lint": "echo 'TODO M4: eslint'",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude test/rls.spec.ts",
     "test:rls": "vitest run test/rls.spec.ts",

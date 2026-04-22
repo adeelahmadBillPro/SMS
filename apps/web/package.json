@@ -8,20 +8,24 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'TODO M3: vitest run'",
-    "e2e": "echo 'TODO M3: playwright test'"
+    "test": "echo 'TODO M4: vitest run'",
+    "e2e": "echo 'TODO M4: playwright test'"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
+    "@sentry/nextjs": "^10.49.0",
     "@shopos/db": "workspace:*",
     "better-auth": "^1.1.8",
     "clsx": "^2.1.1",
     "dotenv": "^16.4.7",
+    "import-in-the-middle": "^3.0.1",
     "motion": "^11.15.0",
     "next": "^15.1.3",
+    "posthog-js": "^1.370.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.54.2",
+    "require-in-the-middle": "^8.0.1",
     "tailwind-merge": "^2.6.0",
     "zod": "^4.0.0"
   },

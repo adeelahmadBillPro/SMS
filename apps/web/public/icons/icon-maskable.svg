@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ShopOS">
+  <rect width="512" height="512" fill="#0F172A"/>
+  <path
+    d="M195 322c0 22 24 35 61 35 40 0 65-16 65-45 0-27-20-41-58-50l-16-4c-28-7-41-16-41-32 0-17 17-28 43-28 25 0 42 12 44 31"
+    fill="none"
+    stroke="#4F46E5"
+    stroke-width="28"
+    stroke-linecap="round"
+    stroke-linejoin="round"/>
+</svg>
