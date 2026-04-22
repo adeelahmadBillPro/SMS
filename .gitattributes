@@ -1,0 +1,29 @@
+# Line-ending normalisation. Everything is LF in the repo; Windows checkouts
+# get CRLF for files that benefit from it (e.g. .md), LF for files that must
+# stay LF at runtime (shell scripts, Dockerfiles, YAML).
+
+* text=auto
+
+# Unix-land artifacts: keep LF in working tree on Windows too, so docker
+# build contexts assembled on Windows don't bake CRLF into production images.
+*.sh          text eol=lf
+*.bash        text eol=lf
+Dockerfile    text eol=lf
+*.Dockerfile  text eol=lf
+Caddyfile     text eol=lf
+*.yml         text eol=lf
+*.yaml        text eol=lf
+.dockerignore text eol=lf
+.gitignore    text eol=lf
+.gitattributes text eol=lf
+
+# Binary guards
+*.png         binary
+*.jpg         binary
+*.jpeg        binary
+*.gif         binary
+*.webp        binary
+*.ico         binary
+*.woff        binary
+*.woff2       binary
+*.pdf         binary

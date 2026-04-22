@@ -1,0 +1,113 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      image_tag:
+        description: "GHCR image tag to deploy (short SHA)"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "GHCR image tag to deploy (e.g. a1b2c3d4e5f6 or 'latest')"
+        required: true
+        type: string
+        default: latest
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  ssh-deploy:
+    name: ssh + docker compose up
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: production
+      url: https://${{ vars.APP_DOMAIN }}
+    env:
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      REGISTRY: ghcr.io
+      OWNER: ${{ github.repository_owner }}
+      GHCR_PAT: ${{ secrets.GITHUB_TOKEN }}
+      DOCKER_USER: ${{ github.actor }}
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sync repo on VPS
+        run: |
+          ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=no \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            'cd /opt/shopos && git fetch origin main && git reset --hard origin/main'
+
+      - name: Pull images + migrate + rotate
+        run: |
+          ssh -i ~/.ssh/deploy \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "bash -s" <<EOF
+          set -euo pipefail
+
+          export IMAGE_REPO="${REGISTRY}/${OWNER}/shopos-web"
+          export WORKER_IMAGE_REPO="${REGISTRY}/${OWNER}/shopos-worker"
+          export MIGRATOR_IMAGE_REPO="${REGISTRY}/${OWNER}/shopos-migrator"
+          export BACKUP_IMAGE_REPO="${REGISTRY}/${OWNER}/shopos-backup"
+          export IMAGE_TAG="${IMAGE_TAG}"
+          export ENV_FILE="/etc/shopos/.env"
+
+          cd /opt/shopos
+
+          echo "${GHCR_PAT}" | docker login ghcr.io -u "${DOCKER_USER}" --password-stdin
+
+          COMPOSE="docker compose -f infra/docker/docker-compose.yml --env-file /etc/shopos/.env"
+          \$COMPOSE pull web worker migrator backup
+
+          # Migrate first so old pods never race the new schema.
+          \$COMPOSE --profile tools run --rm migrator pnpm --filter @shopos/db migrate:prod
+
+          \$COMPOSE up -d --no-build postgres redis
+          \$COMPOSE up -d --no-build web worker caddy backup
+          docker system prune -f
+          EOF
+
+      - name: Health check + rollback on failure
+        id: health
+        run: |
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if ssh -i ~/.ssh/deploy \
+                 "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+                 'curl -fsS -o /dev/null http://127.0.0.1:3000/health' ; then
+              echo "healthy after attempt $i"
+              exit 0
+            fi
+            echo "waiting… ($i/10)"
+            sleep 6
+          done
+          echo "::error::Health check never passed — rolling back web+worker to :previous"
+          ssh -i ~/.ssh/deploy \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "bash -s" <<'ROLLBACK'
+          set -e
+          cd /opt/shopos
+          IMAGE_TAG=previous docker compose -f infra/docker/docker-compose.yml \
+            --env-file /etc/shopos/.env up -d --no-build web worker || true
+          ROLLBACK
+          exit 1
+
+      - name: Tag current images as :previous
+        if: success()
+        run: |
+          ssh -i ~/.ssh/deploy \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "bash -s" <<EOF
+          set -e
+          for img in shopos-web shopos-worker shopos-migrator shopos-backup; do
+            docker tag "${REGISTRY}/${OWNER}/\$img:${IMAGE_TAG}" "${REGISTRY}/${OWNER}/\$img:previous" || true
+          done
+          EOF

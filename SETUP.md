@@ -147,12 +147,21 @@ Paste and edit:
 NODE_ENV=production
 APP_URL=https://shopos.example.com
 NEXT_PUBLIC_APP_URL=https://shopos.example.com
+APP_DOMAIN=shopos.example.com
+ACME_EMAIL=you@example.com
 
-# Database (internal Docker network; not exposed to the public)
+# Database (internal Docker network; not exposed publicly)
 POSTGRES_USER=shopos
 POSTGRES_PASSWORD=<GENERATE A STRONG ONE>
 POSTGRES_DB=shopos_prod
-DATABASE_URL=postgresql://shopos:<same password, URL-encode @ as %40>@postgres:5432/shopos_prod?schema=public
+# Superuser connection — migrations + RLS apply + seed. URL-encode @ as %40.
+DATABASE_URL=postgresql://shopos:<pg-password>@postgres:5432/shopos_prod?schema=public
+# App runtime connection — role shopos_app (no BYPASSRLS).
+DATABASE_APP_URL=postgresql://shopos_app:<app-role-pw>@postgres:5432/shopos_prod?schema=public
+# Admin runtime connection — role shopos_admin (BYPASSRLS). /admin routes.
+DATABASE_ADMIN_URL=postgresql://shopos_admin:<admin-role-pw>@postgres:5432/shopos_prod?schema=public
+SHOPOS_APP_PASSWORD=<app-role-pw, same as in DATABASE_APP_URL>
+SHOPOS_ADMIN_PASSWORD=<admin-role-pw, same as in DATABASE_ADMIN_URL>
 
 # Redis
 REDIS_URL=redis://redis:6379
@@ -167,24 +176,40 @@ FBR_ENCRYPTION_KEY=<openssl rand -base64 32>
 # Super admin bootstrap (only read on first db:seed)
 SUPER_ADMIN_EMAIL=adeel.ahmad8000@gmail.com
 
+# Email transport (console | resend | smtp)
+EMAIL_TRANSPORT=console
+
 # Observability (optional at first)
 SENTRY_DSN=
+NEXT_PUBLIC_SENTRY_DSN=
+SENTRY_ENVIRONMENT=production
+NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
 NEXT_PUBLIC_POSTHOG_KEY=
+NEXT_PUBLIC_POSTHOG_HOST=https://app.posthog.com
 
 # Backups
 BACKUP_REMOTE=none    # options: none | r2 | b2
+BACKUP_CRON=0 22 * * *   # 22:00 UTC = 03:00 PKT
 # If r2:
 # R2_ACCOUNT_ID=
 # R2_ACCESS_KEY_ID=
 # R2_SECRET_ACCESS_KEY=
 # R2_BUCKET=shopos-backups
+
+# GHCR pull (set by GitHub Actions on every deploy; leave unset for
+# first-boot local builds)
+# IMAGE_REPO=ghcr.io/<your-user>/shopos-web
+# WORKER_IMAGE_REPO=ghcr.io/<your-user>/shopos-worker
+# MIGRATOR_IMAGE_REPO=ghcr.io/<your-user>/shopos-migrator
+# BACKUP_IMAGE_REPO=ghcr.io/<your-user>/shopos-backup
+# IMAGE_TAG=latest
 ```
 
 Tips to generate the secrets:
 ```bash
 openssl rand -base64 48      # BETTER_AUTH_SECRET
 openssl rand -base64 32      # FBR_ENCRYPTION_KEY
-openssl rand -base64 24      # a postgres password
+openssl rand -base64 24      # pg passwords (superuser + app + admin)
 ```
 
 ## Step 9 — Point your domain (optional now, required for HTTPS)
@@ -206,51 +231,59 @@ The GitHub Actions workflow will SSH in and run these steps on every push to `ma
 ```bash
 cd /opt/shopos
 git clone https://github.com/<your-user>/shopos.git .
-# Or if private: set up a read-only deploy key first
+# For a private repo, configure a read-only deploy key first.
 
-# Pull pre-built images (CI publishes to GHCR — once you've pushed once)
-# docker login ghcr.io -u <your-user> -p <PAT with read:packages>
-# For the very first deploy, build locally:
-docker compose -f infra/docker/docker-compose.yml --env-file /etc/shopos/.env build
-docker compose -f infra/docker/docker-compose.yml --env-file /etc/shopos/.env up -d
+# Convenience — export the compose alias for this session.
+alias dc="docker compose -f infra/docker/docker-compose.yml --env-file /etc/shopos/.env"
 
-# Wait ~20s for Postgres to start, then run migrations + seed
-docker compose -f infra/docker/docker-compose.yml exec web pnpm db:migrate deploy
-docker compose -f infra/docker/docker-compose.yml exec web pnpm db:rls:apply
-docker compose -f infra/docker/docker-compose.yml exec web pnpm db:seed
+# First boot builds images locally. Subsequent deploys pull from GHCR.
+dc build
+dc up -d postgres redis
+
+# One-off: bootstrap DB roles + schema + RLS + seed.
+#   migrate:prod     — applies prisma migrations as the superuser
+#   rls:apply:prod   — creates shopos_app + shopos_admin roles, enables RLS,
+#                      applies every *.sql in infra/rls/
+#   seed:prod        — seeds plans + chart of accounts + super-admin user
+dc --profile tools run --rm migrator pnpm --filter @shopos/db migrate:prod
+dc --profile tools run --rm migrator pnpm --filter @shopos/db rls:apply:prod
+dc --profile tools run --rm migrator pnpm --filter @shopos/db seed:prod
+
+# Now bring up the app tier.
+dc up -d web worker caddy backup
 ```
 
 Check health:
 ```bash
 curl -sI http://localhost:3000/health    # expect 200
-docker compose -f infra/docker/docker-compose.yml ps
-docker compose -f infra/docker/docker-compose.yml logs -f web
+dc ps
+dc logs -f web
 ```
 
 ## Step 11 — HTTPS via Let's Encrypt
 
-The compose stack uses **Caddy** as the reverse proxy — it fetches and renews Let's Encrypt certificates automatically from the domain set in `APP_URL`. First deploy with the real domain in `/etc/shopos/.env`:
+The compose stack uses **Caddy** as the reverse proxy — it fetches and renews Let's Encrypt certificates automatically from `APP_DOMAIN` in `/etc/shopos/.env`. Once DNS points at the VPS and you've set `APP_DOMAIN` + `ACME_EMAIL`:
 ```bash
-docker compose -f infra/docker/docker-compose.yml restart caddy
-docker compose -f infra/docker/docker-compose.yml logs caddy | grep -i "certificate"
+dc restart caddy
+dc logs caddy | grep -i "certificate"
 ```
-Wait up to 60s for the first cert. Visit `https://shopos.example.com` — padlock should be green.
-
-If you prefer **Nginx + certbot**, swap the `caddy` service for `nginx` + `certbot` sidecar; the compose file has both options commented.
+Wait up to 60s for the first cert. Visit `https://shopos.example.com` — padlock should be green. While `APP_DOMAIN=localhost` (e.g. before DNS is ready) Caddy stays on HTTP.
 
 ## Step 12 — Set up automated nightly backups
 
-Nightly backups run inside a dedicated `backup` container started by compose. Verify the cron works:
+The `backup` service runs `supercronic` with the schedule from `BACKUP_CRON` (default `0 22 * * *` UTC = 03:00 PKT). A dump is written on container boot so the first one lands within seconds:
 ```bash
-docker compose -f infra/docker/docker-compose.yml exec backup /bin/sh -c "ls -la /var/backups/shopos"
+dc logs backup | tail -20
+ls -la /var/backups/shopos/
 ```
 
-Optional: push to Cloudflare R2 by setting `BACKUP_REMOTE=r2` + R2 creds in `/etc/shopos/.env` and restarting the `backup` container.
+Retention is pruned by `/opt/scripts/prune.sh` after every dump: 14 daily + 8 weekly (Sundays) + 6 monthly (1st of month). Override via `BACKUP_RETAIN_DAILY` / `BACKUP_RETAIN_WEEKLY` / `BACKUP_RETAIN_MONTHLY`.
 
-Test a restore (into a scratch Postgres) quarterly:
+Optional: push to Cloudflare R2 by setting `BACKUP_REMOTE=r2` + R2 creds in `/etc/shopos/.env` and restarting the `backup` service.
+
+Run a restore-drill quarterly (creates a scratch DB, restores the latest dump, smoke-queries it, drops the scratch DB):
 ```bash
-# Inside the compose network:
-docker compose -f infra/docker/docker-compose.yml exec backup /opt/scripts/restore-drill.sh
+dc exec backup /opt/scripts/restore-drill.sh
 ```
 
 ## Step 13 — Wire GitHub Actions for auto-deploy
@@ -263,14 +296,22 @@ cat ~/.ssh/gha_deploy                                   # copy the PRIVATE key �
 ```
 
 In GitHub → repo → Settings → Secrets and variables → Actions, add:
-| Secret            | Value                                                     |
-|-------------------|-----------------------------------------------------------|
-| `VPS_HOST`        | your VPS IP                                               |
-| `VPS_USER`        | `deploy`                                                  |
-| `VPS_SSH_KEY`     | paste the private key from above                          |
-| `GHCR_PAT`        | GitHub PAT with `read:packages` scope                     |
 
-Now every push to `main` triggers CI → build → push image to GHCR → SSH into VPS → `docker compose pull && up -d` → health check.
+**Repository secrets:**
+| Secret           | Value                                                                 |
+|------------------|-----------------------------------------------------------------------|
+| `VPS_HOST`       | your VPS IP                                                           |
+| `VPS_USER`       | `deploy`                                                              |
+| `VPS_SSH_KEY`    | paste the private key from above                                      |
+
+**Repository variables** (Settings → Variables, not Secrets):
+| Variable         | Value                                                                 |
+|------------------|-----------------------------------------------------------------------|
+| `APP_DOMAIN`     | `shopos.example.com` — shown in the GitHub Environments UI            |
+
+The built-in `GITHUB_TOKEN` already has `packages: write` from the CI workflow's `permissions:` block, so no separate GHCR PAT is needed.
+
+Now every push to `main` triggers CI → build + push 4 images to GHCR → SSH into VPS → `git pull` → `docker compose pull` → run migrator → rotate web/worker/caddy/backup → health check (10 attempts / ~60s) → tag as `:previous` on success or roll back on failure.
 
 ## Step 14 — Verify end-to-end
 
@@ -289,20 +330,32 @@ Now every push to `main` triggers CI → build → push image to GHCR → SSH in
 ## Maintenance cheat-sheet
 
 ```bash
-# Tail logs
-docker compose -f infra/docker/docker-compose.yml logs -f web worker
+# Convenience alias — prefix every command below with this in your shell.
+alias dc="docker compose -f infra/docker/docker-compose.yml --env-file /etc/shopos/.env"
 
-# Restart the app
-docker compose -f infra/docker/docker-compose.yml restart web worker
+# Tail logs
+dc logs -f web worker
+
+# Restart the app tier (keeps postgres/redis up)
+dc restart web worker
 
 # Open a psql prompt
-docker compose -f infra/docker/docker-compose.yml exec postgres psql -U shopos shopos_prod
+dc exec postgres psql -U shopos shopos_prod
 
-# Run a one-off migration after pulling new code
-docker compose -f infra/docker/docker-compose.yml exec web pnpm db:migrate deploy
+# One-off migration after pulling new code (use the migrator profile)
+dc --profile tools run --rm migrator pnpm --filter @shopos/db migrate:prod
+
+# Bootstrap a new super-admin (one-off)
+dc --profile tools run --rm migrator pnpm --filter @shopos/db admin:create:prod
+
+# Take a manual backup right now
+dc exec backup /opt/scripts/pg_dump.sh
+
+# Restore-drill (quarterly)
+dc exec backup /opt/scripts/restore-drill.sh
 
 # Free some disk
-docker system prune -af --volumes    # careful — won't touch named volumes
+docker system prune -af    # careful — won't touch named volumes
 ```
 
 ---
@@ -329,12 +382,17 @@ type $env:USERPROFILE\.ssh\id_ed25519.pub   # the public half to copy up to the 
 
 ## Appendix C — Rolling back a bad deploy
 
+The deploy workflow tags the previous-successful image as `:previous` on every successful deploy. To revert quickly:
+
 ```bash
+alias dc="docker compose -f infra/docker/docker-compose.yml --env-file /etc/shopos/.env"
 cd /opt/shopos
-git log --oneline -5                      # find the last good SHA
-docker pull ghcr.io/<your-user>/shopos:<good-sha>
-# Edit docker-compose.yml image tags to <good-sha>, then:
-docker compose -f infra/docker/docker-compose.yml up -d
+IMAGE_TAG=previous dc up -d --no-build web worker
 ```
 
-Or just revert the commit on `main` and let CI redeploy.
+Or pin a specific SHA (the deploy workflow prints the short SHA it pushed):
+```bash
+IMAGE_TAG=<12-char-sha> dc up -d --no-build web worker
+```
+
+When a schema-level revert is needed (rare), the safer path is: revert the offending commit on `main`, let CI run its migrations + rotate. Raw `prisma migrate resolve` should be a last resort.

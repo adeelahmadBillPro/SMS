@@ -1,0 +1,208 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Matches packageManager in package.json — keep in sync.
+  PNPM_VERSION: "10.33.0"
+  NODE_VERSION: "22"
+
+jobs:
+  # --------------------------------------------------------------------------
+  # Lint, typecheck, unit tests, Next build. Cheap, runs on every PR.
+  # --------------------------------------------------------------------------
+  check:
+    name: lint + typecheck + build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      # @shopos/db's env.ts + next build want these set; runtime reads real
+      # values from /etc/shopos/.env on the VPS.
+      DATABASE_URL: postgresql://ph:ph@localhost:5432/ph?schema=public
+      DATABASE_APP_URL: postgresql://ph:ph@localhost:5432/ph?schema=public
+      DATABASE_ADMIN_URL: postgresql://ph:ph@localhost:5432/ph?schema=public
+      BETTER_AUTH_SECRET: ci-placeholder-secret
+      APP_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Prisma generate is a build dependency of every other task via turbo.
+      - run: pnpm --filter @shopos/db build
+
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+
+  # --------------------------------------------------------------------------
+  # RLS isolation proof — required green to merge. Spins up a real Postgres
+  # (not a mock), applies migrations + RLS, and asserts tenant A can't read,
+  # update, or delete tenant B's rows through the shopos_app role.
+  # --------------------------------------------------------------------------
+  rls:
+    name: test:rls
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-bookworm
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: shopos_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/shopos_ci?schema=public
+      DATABASE_APP_URL: postgresql://shopos_app:ci_app_pw@localhost:5432/shopos_ci?schema=public
+      DATABASE_ADMIN_URL: postgresql://shopos_admin:ci_admin_pw@localhost:5432/shopos_ci?schema=public
+      SHOPOS_APP_PASSWORD: ci_app_pw
+      SHOPOS_ADMIN_PASSWORD: ci_admin_pw
+      BETTER_AUTH_SECRET: ci-placeholder-secret
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @shopos/db build
+
+      - name: Apply migrations
+        working-directory: packages/db
+        run: pnpm exec prisma migrate deploy
+
+      - name: Apply RLS policies
+        working-directory: packages/db
+        run: pnpm exec tsx src/rls-apply.ts
+
+      - name: RLS isolation test
+        run: pnpm test:rls
+
+  # --------------------------------------------------------------------------
+  # Image build (runs on main merges only — pushes tagged images to GHCR
+  # that the deploy workflow picks up).
+  # --------------------------------------------------------------------------
+  images:
+    name: build + push images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [check, rls]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          SHA_SHORT=$(echo "${{ github.sha }}" | cut -c1-12)
+          echo "sha_short=$SHA_SHORT" >> "$GITHUB_OUTPUT"
+
+      - name: Build + push web (runner)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          target: runner
+          push: true
+          provenance: false
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/shopos-web:${{ steps.tags.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/shopos-web:latest
+
+      - name: Build + push migrator
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          target: migrator
+          push: true
+          provenance: false
+          cache-from: type=gha,scope=migrator
+          cache-to: type=gha,mode=max,scope=migrator
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/shopos-migrator:${{ steps.tags.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/shopos-migrator:latest
+
+      - name: Build + push worker
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/worker/Dockerfile
+          push: true
+          provenance: false
+          cache-from: type=gha,scope=worker
+          cache-to: type=gha,mode=max,scope=worker
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/shopos-worker:${{ steps.tags.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/shopos-worker:latest
+
+      - name: Build + push backup
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/backup
+          file: infra/backup/Dockerfile
+          push: true
+          provenance: false
+          cache-from: type=gha,scope=backup
+          cache-to: type=gha,mode=max,scope=backup
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/shopos-backup:${{ steps.tags.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/shopos-backup:latest
+
+    outputs:
+      sha_short: ${{ steps.tags.outputs.sha_short }}
+
+  deploy:
+    name: deploy to VPS
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: images
+    uses: ./.github/workflows/deploy.yml
+    with:
+      image_tag: ${{ needs.images.outputs.sha_short }}
+    secrets: inherit

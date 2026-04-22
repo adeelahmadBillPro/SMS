@@ -1,0 +1,35 @@
+# Keep build context small + deterministic.
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/coverage
+**/.vitest-reports
+
+# Secrets — never ship in an image layer
+.env
+.env.*
+!.env.example
+
+# Generated Prisma client (regenerated inside the builder stage)
+packages/db/src/generated
+
+# VCS + IDE
+.git
+.gitignore
+.github
+.vscode
+.idea
+*.swp
+
+# Local artefacts / logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.DS_Store
+
+# Docs + non-runtime files
+docs/
+*.md
+!SETUP.md
+!README.md

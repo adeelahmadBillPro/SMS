@@ -1,0 +1,166 @@
+# ShopOS production stack — Hostinger Ubuntu VPS, Docker Compose v2.
+#
+# Usage (all from the repo clone at /opt/shopos, as user `deploy`):
+#
+#   # First boot — builds images locally:
+#   docker compose -f infra/docker/docker-compose.yml --env-file /etc/shopos/.env up -d --build
+#
+#   # Subsequent deploys — GitHub Actions pushes tagged images to GHCR; the
+#   # deploy workflow runs `docker compose pull` + `up -d` on this file.
+#
+#   # One-off admin tasks (migrations, seed, RLS apply, super-admin create):
+#   docker compose -f infra/docker/docker-compose.yml --env-file /etc/shopos/.env \
+#     --profile tools run --rm migrator \
+#     pnpm --filter @shopos/db migrate:prod
+#
+# The `web` and `worker` images are intended to be pulled from GHCR in
+# steady state. `IMAGE_REPO` + `IMAGE_TAG` come from /etc/shopos/.env
+# (defaults below match local builds when those vars are unset).
+
+name: shopos
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-shopos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-shopos_prod}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shopos} -d ${POSTGRES_DB:-shopos_prod}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    logging: *default-logging
+
+  redis:
+    image: redis:7-bookworm
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    logging: *default-logging
+
+  web:
+    image: ${IMAGE_REPO:-shopos/web}:${IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      target: runner
+    restart: unless-stopped
+    env_file:
+      - ${ENV_FILE:-/etc/shopos/.env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging: *default-logging
+
+  worker:
+    image: ${WORKER_IMAGE_REPO:-shopos/worker}:${IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: services/worker/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ${ENV_FILE:-/etc/shopos/.env}
+    depends_on:
+      redis:
+        condition: service_healthy
+    logging: *default-logging
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    logging: *default-logging
+
+  backup:
+    image: ${BACKUP_IMAGE_REPO:-shopos/backup}:${IMAGE_TAG:-local}
+    build:
+      context: ../backup
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ${ENV_FILE:-/etc/shopos/.env}
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-shopos}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-shopos_prod}
+      BACKUP_CRON: ${BACKUP_CRON:-0 22 * * *}  # 22:00 UTC = 03:00 PKT
+      BACKUP_RETAIN_DAILY: "14"
+      BACKUP_RETAIN_WEEKLY: "8"
+      BACKUP_RETAIN_MONTHLY: "6"
+    volumes:
+      - backups:/var/backups/shopos
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *default-logging
+
+  # One-off toolbox. Not started by `up`; invoked via:
+  #   docker compose --profile tools run --rm migrator <command>
+  migrator:
+    image: ${MIGRATOR_IMAGE_REPO:-shopos/migrator}:${IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      target: migrator
+    env_file:
+      - ${ENV_FILE:-/etc/shopos/.env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["tools"]
+    logging: *default-logging
+
+volumes:
+  pg_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
+  backups:
+    driver: local
+    driver_opts:
+      type: none
+      device: /var/backups/shopos
+      o: bind

@@ -1,0 +1,54 @@
+# ShopOS Caddy v2 reverse proxy.
+#
+# `APP_DOMAIN` + `ACME_EMAIL` come from /etc/shopos/.env (loaded into the
+# caddy container via `environment:` in docker-compose.yml). Caddy expands
+# {$VAR} at config load.
+#
+# Automatic HTTPS: Caddy fetches + renews Let's Encrypt certs for the
+# requested domain. When APP_DOMAIN=localhost (dev/bootstrap before DNS
+# points at the VPS), Caddy serves HTTP only.
+
+{
+	email {$ACME_EMAIL}
+	# Structured access log to stdout; Docker captures it.
+	log {
+		output stdout
+		format json
+	}
+}
+
+{$APP_DOMAIN}, www.{$APP_DOMAIN} {
+	encode zstd gzip
+
+	# Never cache HTML — avoid stale shells post-deploy.
+	@html {
+		header Accept text/html*
+	}
+	header @html Cache-Control "no-store"
+
+	# Public PWA + icon assets: immutable, 1 year.
+	@static {
+		path /_next/static/* /icons/* /manifest.webmanifest
+	}
+	header @static Cache-Control "public, max-age=31536000, immutable"
+
+	# Baseline security headers. CSP deliberately omitted — Next's inline
+	# scripts + Sentry + PostHog snippets each need bespoke directives;
+	# add in a later milestone once the surface is stable.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options    "nosniff"
+		X-Frame-Options           "DENY"
+		Referrer-Policy           "strict-origin-when-cross-origin"
+		Permissions-Policy        "camera=(self), microphone=(), geolocation=(self)"
+		-Server
+	}
+
+	reverse_proxy web:3000 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Real-IP         {remote_host}
+		transport http {
+			keepalive 30s
+		}
+	}
+}

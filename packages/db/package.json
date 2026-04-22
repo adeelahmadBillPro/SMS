@@ -19,7 +19,11 @@
     "rls:apply": "dotenv -e ../../.env -- tsx src/rls-apply.ts",
     "seed": "dotenv -e ../../.env -- tsx src/seed.ts",
     "admin:create": "dotenv -e ../../.env -- tsx src/admin-create.ts",
-    "prisma": "dotenv -e ../../.env -- prisma"
+    "prisma": "dotenv -e ../../.env -- prisma",
+    "migrate:prod": "prisma migrate deploy",
+    "rls:apply:prod": "tsx src/rls-apply.ts",
+    "seed:prod": "tsx src/seed.ts",
+    "admin:create:prod": "tsx src/admin-create.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0",
