@@ -3,15 +3,19 @@ import { requireShop } from "@/lib/require-shop";
 import { AppShell } from "@/components/shell/app-shell";
 import { countLowStock, listProducts } from "@/app/inventory/queries";
 import { todaysSalesSummary } from "@/app/pos/queries";
+import { totalCustomerReceivables } from "@/app/customers/queries";
+import { totalSupplierDues } from "@/app/suppliers/queries";
 import { formatPKR } from "@shopos/core";
 
 export default async function DashboardPage() {
   const { session, membership } = await requireShop();
 
-  const [products, lowCount, today] = await Promise.all([
+  const [products, lowCount, today, receivables, dues] = await Promise.all([
     listProducts(membership.shopId, {}),
     countLowStock(membership.shopId),
     todaysSalesSummary(membership.shopId),
+    totalCustomerReceivables(membership.shopId),
+    totalSupplierDues(membership.shopId),
   ]);
 
   const activeProducts = products.filter((p) => p.isActive);
@@ -34,14 +38,34 @@ export default async function DashboardPage() {
             note={`${today.count} bill${today.count === 1 ? "" : "s"} · cash ${formatPKR(today.cash)}`}
             href="/pos"
           />
-          <StatCard title="Products" value={activeProducts.length.toLocaleString("en-PK")} href="/inventory" />
-          <StatCard title="Stock value" value={formatPKR(stockValue)} note={`${totalUnits.toLocaleString("en-PK")} units`} />
+          <StatCard
+            title="Customers owe"
+            value={formatPKR(receivables)}
+            note="Udhaar"
+            href="/customers"
+            accent={receivables > 0}
+            tone="indigo"
+          />
+          <StatCard
+            title="You owe suppliers"
+            value={formatPKR(dues)}
+            href="/suppliers"
+            accent={dues > 0}
+            tone="rose"
+          />
           <StatCard
             title="Needs reorder"
             value={lowCount.toLocaleString("en-PK")}
             accent={lowCount > 0}
             href={lowCount > 0 ? "/inventory?low=1" : undefined}
+            tone="amber"
           />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <StatCard title="Products" value={activeProducts.length.toLocaleString("en-PK")} href="/inventory" />
+          <StatCard title="Units in stock" value={totalUnits.toLocaleString("en-PK")} />
+          <StatCard title="Stock value (cost)" value={formatPKR(stockValue)} />
         </div>
 
         <section className="grid gap-6 lg:grid-cols-3">
@@ -114,41 +138,65 @@ export default async function DashboardPage() {
   );
 }
 
+type Tone = "amber" | "rose" | "indigo";
+
 function StatCard({
   title,
   value,
   note,
   accent,
   href,
+  tone = "amber",
 }: {
   title: string;
   value: string;
   note?: string;
   accent?: boolean;
   href?: string;
+  tone?: Tone;
 }) {
+  const toneClasses: Record<Tone, { border: string; bg: string; hover: string; labelFg: string; valueFg: string }> = {
+    amber: {
+      border: "border-amber-200",
+      bg: "bg-amber-50",
+      hover: "hover:bg-amber-100",
+      labelFg: "text-amber-800",
+      valueFg: "text-amber-900",
+    },
+    rose: {
+      border: "border-rose-200",
+      bg: "bg-rose-50",
+      hover: "hover:bg-rose-100",
+      labelFg: "text-rose-800",
+      valueFg: "text-rose-900",
+    },
+    indigo: {
+      border: "border-indigo-200",
+      bg: "bg-indigo-50",
+      hover: "hover:bg-indigo-100",
+      labelFg: "text-indigo-800",
+      valueFg: "text-indigo-900",
+    },
+  };
+  const t = toneClasses[tone];
   const body = (
     <div
       className={`rounded-lg border p-5 shadow-sm transition-colors ${
-        accent ? "border-amber-200 bg-amber-50 hover:bg-amber-100" : "border-slate-200 bg-white hover:bg-slate-50"
+        accent ? `${t.border} ${t.bg} ${t.hover}` : "border-slate-200 bg-white hover:bg-slate-50"
       }`}
     >
       <p
-        className={`text-xs font-medium uppercase tracking-wider ${
-          accent ? "text-amber-800" : "text-slate-500"
-        }`}
+        className={`text-xs font-medium uppercase tracking-wider ${accent ? t.labelFg : "text-slate-500"}`}
       >
         {title}
       </p>
       <p
-        className={`mt-2 text-3xl font-semibold tabular-nums ${
-          accent ? "text-amber-900" : "text-slate-900"
-        }`}
+        className={`mt-2 text-3xl font-semibold tabular-nums ${accent ? t.valueFg : "text-slate-900"}`}
       >
         {value}
       </p>
       {note ? (
-        <p className={`mt-1 text-xs ${accent ? "text-amber-800" : "text-slate-500"}`}>{note}</p>
+        <p className={`mt-1 text-xs ${accent ? t.labelFg : "text-slate-500"}`}>{note}</p>
       ) : null}
     </div>
   );

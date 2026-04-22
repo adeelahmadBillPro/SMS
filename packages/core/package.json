@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./inventory": "./src/inventory/index.ts",
     "./billing": "./src/billing/index.ts",
+    "./khata": "./src/khata/index.ts",
     "./money": "./src/money/index.ts"
   },
   "scripts": {

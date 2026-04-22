@@ -16,15 +16,19 @@ export interface LedgerLine {
 }
 
 /**
- * Subset of the seeded chart-of-accounts codes the sale flow touches.
- * See apps/web/src/app/onboarding/action.ts for the full list.
+ * Seeded chart-of-accounts codes used across sale + purchase + payment
+ * flows. See apps/web/src/app/onboarding/action.ts for the full list.
  */
 export type AccountCode =
   | "1000" // Cash
   | "1100" // Bank
   | "1200" // Customer Receivables
+  | "2000" // Supplier Payables
   | "2100" // Tax Payable
-  | "4000"; // Sales
+  | "3000" // Owner Equity
+  | "4000" // Sales
+  | "5000" // Purchases
+  | "6000"; // Expenses
 
 export interface SaleLedgerInput {
   total: number;
