@@ -1,0 +1,16 @@
+{
+  "name": "@shopos/db",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "echo 'TODO M1: tsc'",
+    "lint": "echo 'TODO M1: eslint'",
+    "typecheck": "echo 'TODO M1: tsc --noEmit'",
+    "test": "echo 'TODO M1: vitest run'",
+    "test:rls": "echo 'TODO M1: vitest run rls.spec.ts'",
+    "migrate": "echo 'TODO M1: prisma migrate'",
+    "rls:apply": "echo 'TODO M1: psql -f infra/rls/*.sql'",
+    "seed": "echo 'TODO M1: tsx src/seed.ts'",
+    "admin:create": "echo 'TODO M1: tsx src/admin-create.ts'"
+  }
+}

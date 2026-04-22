@@ -1,0 +1,29 @@
+{
+  "name": "shopos",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Offline-first inventory + billing + forecasting SaaS for Pakistani retail shops",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:rls": "turbo run test:rls --filter=@shopos/db",
+    "e2e": "turbo run e2e --filter=@shopos/web",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "db:migrate": "pnpm --filter @shopos/db migrate",
+    "db:rls:apply": "pnpm --filter @shopos/db rls:apply",
+    "db:seed": "pnpm --filter @shopos/db seed",
+    "admin:create": "pnpm --filter @shopos/db admin:create"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3"
+  }
+}

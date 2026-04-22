@@ -1,0 +1,13 @@
+{
+  "name": "@shopos/worker",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'TODO M4: tsx watch src/index.ts'",
+    "build": "echo 'TODO M4: tsc'",
+    "start": "echo 'TODO M4: node dist/index.js'",
+    "lint": "echo 'TODO M4: eslint'",
+    "typecheck": "echo 'TODO M4: tsc --noEmit'",
+    "test": "echo 'TODO M4: vitest run'"
+  }
+}

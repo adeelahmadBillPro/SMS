@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.next/
+.turbo/
+out/
+*.tsbuildinfo
+.swc/
+
+# Prisma generated
+packages/db/src/generated/
+packages/db/prisma/migrations/*/migration_lock.toml.bak
+
+# Env + secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Runtime
+pids/
+*.pid
+*.seed
+*.log
+logs/
+
+# Caches
+.eslintcache
+.cache/
+coverage/
+.nyc_output/
+
+# Editor / IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Docker / deploy
+.docker-data/
+volumes/
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# OS
+*.bak

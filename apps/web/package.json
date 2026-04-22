@@ -1,0 +1,13 @@
+{
+  "name": "@shopos/web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'TODO M2: next dev'",
+    "build": "echo 'TODO M2: next build'",
+    "lint": "echo 'TODO M3: next lint'",
+    "typecheck": "echo 'TODO M2: tsc --noEmit'",
+    "test": "echo 'TODO M2: vitest run'",
+    "e2e": "echo 'TODO M2: playwright test'"
+  }
+}
