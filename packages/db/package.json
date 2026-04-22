@@ -2,15 +2,37 @@
   "name": "@shopos/db",
   "version": "0.0.0",
   "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts"
+  },
   "scripts": {
-    "build": "echo 'TODO M1: tsc'",
-    "lint": "echo 'TODO M1: eslint'",
-    "typecheck": "echo 'TODO M1: tsc --noEmit'",
-    "test": "echo 'TODO M1: vitest run'",
-    "test:rls": "echo 'TODO M1: vitest run rls.spec.ts'",
-    "migrate": "echo 'TODO M1: prisma migrate'",
-    "rls:apply": "echo 'TODO M1: psql -f infra/rls/*.sql'",
-    "seed": "echo 'TODO M1: tsx src/seed.ts'",
-    "admin:create": "echo 'TODO M1: tsx src/admin-create.ts'"
+    "build": "prisma generate",
+    "lint": "echo 'TODO M3: eslint'",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --exclude test/rls.spec.ts",
+    "test:rls": "vitest run test/rls.spec.ts",
+    "migrate": "dotenv -e ../../.env -- prisma migrate deploy",
+    "migrate:dev": "dotenv -e ../../.env -- prisma migrate dev",
+    "rls:apply": "dotenv -e ../../.env -- tsx src/rls-apply.ts",
+    "seed": "dotenv -e ../../.env -- tsx src/seed.ts",
+    "admin:create": "dotenv -e ../../.env -- tsx src/admin-create.ts",
+    "prisma": "dotenv -e ../../.env -- prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.1.0",
+    "dotenv": "^16.4.7",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/pg": "^8.11.10",
+    "dotenv-cli": "^7.4.4",
+    "prisma": "^6.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
   }
 }
