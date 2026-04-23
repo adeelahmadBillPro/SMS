@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 
@@ -105,8 +106,10 @@ export function TenantsTable({ rows }: { rows: TenantRow[] }) {
               filtered.map((t) => (
                 <tr key={t.id} className="text-sm hover:bg-slate-50">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-slate-900">{t.name}</div>
-                    <div className="font-mono text-[11px] text-slate-400">{t.id}</div>
+                    <Link href={`/admin/tenants/${t.id}`} className="block">
+                      <div className="font-medium text-slate-900 hover:underline">{t.name}</div>
+                      <div className="font-mono text-[11px] text-slate-400">{t.id}</div>
+                    </Link>
                   </td>
                   <td className="px-4 py-3 text-slate-600">
                     {dateFmt.format(new Date(t.createdAt))}

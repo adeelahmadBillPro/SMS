@@ -62,6 +62,22 @@ export default async function SettingsPage() {
           </div>
           <FbrCredsForm isConfigured={fbrConfigured} />
         </section>
+
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Your data</h2>
+          <p className="text-sm text-slate-600">
+            Download every row we hold for this shop as a ZIP of CSVs. Nothing&apos;s locked in.
+            Products, sales, purchases, payments, ledger, closings — all of it.
+          </p>
+          <div>
+            <a
+              href="/api/export/all.zip"
+              className="inline-flex h-10 items-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              Download all my data
+            </a>
+          </div>
+        </section>
       </div>
     </AppShell>
   );
