@@ -155,6 +155,10 @@ export interface PosSaleSummary {
     serial: string | null;
   }>;
   payments: Array<{ id: string; method: string; amount: number }>;
+  fbrStatus: "NONE" | "PENDING" | "POSTED" | "FAILED";
+  fbrInvoiceNumber: string | null;
+  fbrQrCode: string | null;
+  fbrError: string | null;
 }
 
 export async function getSaleForReceipt(shopId: string, saleId: string): Promise<PosSaleSummary | null> {
@@ -202,6 +206,10 @@ export async function getSaleForReceipt(shopId: string, saleId: string): Promise
         method: p.method,
         amount: Number(p.amount),
       })),
+      fbrStatus: s.fbrStatus,
+      fbrInvoiceNumber: s.fbrInvoiceNumber,
+      fbrQrCode: s.fbrQrCode,
+      fbrError: s.fbrError,
     };
   });
 }

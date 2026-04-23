@@ -10,6 +10,7 @@
     "./billing": "./src/billing/index.ts",
     "./khata": "./src/khata/index.ts",
     "./closing": "./src/closing/index.ts",
+    "./forecasting": "./src/forecasting/index.ts",
     "./money": "./src/money/index.ts"
   },
   "scripts": {

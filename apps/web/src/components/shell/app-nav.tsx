@@ -20,7 +20,7 @@ const NAV: NavItem[] = [
   { label: "Expenses", href: "/expenses" },
   { label: "Closing", href: "/closing" },
   { label: "Reports", href: "/reports" },
-  { label: "Settings", href: "/settings", soon: true },
+  { label: "Settings", href: "/settings" },
 ];
 
 export function AppNav() {

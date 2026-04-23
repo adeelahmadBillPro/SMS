@@ -90,11 +90,18 @@ export async function createSaleAction(
 
       // ---- Shop flags (RLS already scopes us, but shop is a global table;
       // we read it via the admin path for allow_negative_stock).
-      const shopRow = await tx.$queryRawUnsafe<Array<{ allow_negative_stock: boolean }>>(
-        "SELECT allow_negative_stock FROM shop WHERE id = $1",
+      const shopRow = await tx.$queryRawUnsafe<
+        Array<{
+          allow_negative_stock: boolean;
+          fbr_pos_id_enc: string | null;
+          fbr_api_key_enc: string | null;
+        }>
+      >(
+        "SELECT allow_negative_stock, fbr_pos_id_enc, fbr_api_key_enc FROM shop WHERE id = $1",
         shopId,
       );
       const allowNeg = shopRow[0]?.allow_negative_stock ?? false;
+      const hasFbrCreds = !!(shopRow[0]?.fbr_pos_id_enc && shopRow[0]?.fbr_api_key_enc);
 
       // ---- Build server-authoritative cart + totals.
       const hydratedCart = parsed.data.cart.map((l) => {
@@ -213,7 +220,10 @@ export async function createSaleAction(
       const now = new Date();
       await assertDayOpen(tx, now);
 
-      // ---- Create the sale header.
+      // ---- Create the sale header. If the shop has FBR credentials
+      //      configured, the sale starts in PENDING state so the worker
+      //      (M14 / live FBR integration) can post it and flip to POSTED.
+      //      Without creds the sale stays at NONE.
       const sale = await tx.sale.create({
         data: {
           shopId,
@@ -226,6 +236,7 @@ export async function createSaleAction(
           total: totals.total,
           creditAmount: parsed.data.creditAmount,
           clientUuid: parsed.data.clientUuid,
+          fbrStatus: hasFbrCreds ? "PENDING" : "NONE",
         },
         select: { id: true, total: true },
       });

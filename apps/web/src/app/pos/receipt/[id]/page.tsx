@@ -142,12 +142,65 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
 
           <hr className="my-4 border-dashed border-slate-300" />
 
+          <FbrStamp
+            status={sale.fbrStatus}
+            invoiceNumber={sale.fbrInvoiceNumber}
+            qr={sale.fbrQrCode}
+            error={sale.fbrError}
+          />
+
           <p className="text-center text-xs text-slate-500">
             Served by {sale.cashier.email}
           </p>
           <p className="mt-1 text-center text-xs text-slate-400">Thank you for shopping with us.</p>
         </article>
       </div>
+    </div>
+  );
+}
+
+function FbrStamp({
+  status,
+  invoiceNumber,
+  qr,
+  error,
+}: {
+  status: "NONE" | "PENDING" | "POSTED" | "FAILED";
+  invoiceNumber: string | null;
+  qr: string | null;
+  error: string | null;
+}) {
+  if (status === "NONE") return null;
+
+  if (status === "POSTED" && qr) {
+    return (
+      <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-indigo-200 bg-indigo-50 p-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-800">FBR invoice</p>
+          <p className="mt-0.5 truncate font-mono text-xs text-indigo-900">{invoiceNumber}</p>
+        </div>
+        <div className="h-20 w-20 shrink-0 rounded border border-indigo-200 bg-white p-1 text-[8px] text-slate-400">
+          {/* Real QR rendering lands with M14 FBR live. For now just display the payload as text so
+              the receipt documents what will be encoded. */}
+          <div className="flex h-full w-full items-center justify-center break-all p-1 text-center">{qr}</div>
+        </div>
+      </div>
+    );
+  }
+
+  const tone =
+    status === "PENDING"
+      ? "border-amber-200 bg-amber-50 text-amber-900"
+      : "border-rose-200 bg-rose-50 text-rose-900"; // FAILED
+  const label = status === "PENDING" ? "FBR pending" : "FBR failed";
+  return (
+    <div className={`mb-4 rounded-md border px-3 py-2 text-center text-xs ${tone}`}>
+      <p className="font-semibold uppercase tracking-wider">{label}</p>
+      <p className="mt-0.5 opacity-80">
+        {status === "PENDING"
+          ? "This invoice will be posted to FBR once the worker integration goes live."
+          : (error ?? "Post failed — super-admin can retry.")}
+      </p>
     </div>
   );
 }
