@@ -44,12 +44,14 @@ export function RevealFrom({
   direction = "bottom",
   delay = 0,
   className,
-  once = true,
+  once = false,
 }: {
   children: ReactNode;
   direction?: Direction;
   delay?: number;
   className?: string;
+  /** When false (default) the reveal replays each time the element
+   *  re-enters the viewport — feels alive when you scroll back up. */
   once?: boolean;
 }) {
   const off = OFFSETS[direction];
@@ -57,7 +59,7 @@ export function RevealFrom({
     <motion.div
       initial={{ opacity: 0, ...off }}
       whileInView={{ opacity: 1, x: 0, y: 0, scale: 1 }}
-      viewport={{ once, margin: "-12%" }}
+      viewport={{ once, margin: "-12%", amount: 0.2 }}
       transition={{ duration: 0.55, delay, ease: [0.22, 1, 0.36, 1] }}
       className={className}
     >
@@ -107,50 +109,87 @@ export function RotatingWord({
 }
 
 /* ================================================================
- * Typewriter — char-by-char reveal, starts when in view
+ * Typewriter — char-by-char reveal that loops (type → pause → erase → retype)
  * ================================================================ */
 export function Typewriter({
   text,
-  speed = 26,
+  speed = 45,
+  eraseSpeed = 20,
+  pauseEndMs = 2800,
+  pauseStartMs = 600,
   startDelay = 0,
   className,
   caret = true,
+  loop = true,
 }: {
   text: string;
+  /** ms per char while typing */
   speed?: number;
+  /** ms per char while erasing */
+  eraseSpeed?: number;
+  /** pause at full text before erasing */
+  pauseEndMs?: number;
+  /** pause at empty state before retyping */
+  pauseStartMs?: number;
   startDelay?: number;
   className?: string;
   caret?: boolean;
+  loop?: boolean;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-10%" });
+  const inView = useInView(ref, { once: !loop, margin: "-10%" });
   const [shown, setShown] = useState(0);
 
   useEffect(() => {
     if (!inView) return;
-    let t: ReturnType<typeof setTimeout>;
-    const tick = (n: number) => {
-      if (n >= text.length) return;
-      t = setTimeout(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    let cancelled = false;
+
+    const schedule = (fn: () => void, ms: number) => {
+      timer = setTimeout(() => {
+        if (!cancelled) fn();
+      }, ms);
+    };
+
+    const typeForward = (n: number) => {
+      if (cancelled) return;
+      if (n >= text.length) {
+        if (!loop) return;
+        schedule(() => eraseBackward(text.length), pauseEndMs);
+        return;
+      }
+      schedule(() => {
         setShown(n + 1);
-        tick(n + 1);
+        typeForward(n + 1);
       }, speed);
     };
-    const start = setTimeout(() => tick(shown), startDelay);
+
+    const eraseBackward = (n: number) => {
+      if (cancelled) return;
+      if (n <= 0) {
+        schedule(() => typeForward(0), pauseStartMs);
+        return;
+      }
+      schedule(() => {
+        setShown(n - 1);
+        eraseBackward(n - 1);
+      }, eraseSpeed);
+    };
+
+    schedule(() => typeForward(shown), startDelay);
     return () => {
-      clearTimeout(start);
-      clearTimeout(t);
+      cancelled = true;
+      clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inView]);
+  }, [inView, text, loop, speed, eraseSpeed, pauseEndMs, pauseStartMs]);
 
-  const done = shown >= text.length;
   return (
     <span ref={ref} className={className}>
       {text.slice(0, shown)}
       {caret ? (
         <span
-          className={`ml-0.5 inline-block w-[2px] bg-current ${done ? "animate-caret" : ""}`}
+          className="ml-0.5 inline-block w-[2px] animate-caret bg-current"
           style={{ height: "1em", verticalAlign: "-0.12em" }}
           aria-hidden
         />

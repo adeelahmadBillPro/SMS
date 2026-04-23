@@ -189,7 +189,11 @@ export default function LandingPage() {
               <Typewriter
                 text="Offline-first billing, inventory & forecasting — built for mobile, laptop, and electronics shops. FBR-ready. WhatsApp-native. One-tap nightly closing."
                 startDelay={250}
-                speed={16}
+                speed={42}
+                eraseSpeed={18}
+                pauseEndMs={3500}
+                pauseStartMs={800}
+                loop
               />
             </motion.p>
 

@@ -142,7 +142,7 @@ export async function getProduct(shopId: string, productId: string): Promise<Pro
     >(
       `SELECT variant_id, COALESCE(SUM(qty_delta), 0)::bigint AS current_qty
        FROM stock_movement
-       WHERE shop_id = $1 AND product_id = $2
+       WHERE shop_id = $1::uuid AND product_id = $2::uuid
        GROUP BY variant_id`,
       shopId,
       productId,

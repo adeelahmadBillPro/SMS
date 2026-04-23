@@ -86,7 +86,7 @@ async function hydrate(
     >(
       `SELECT product_id, variant_id, COALESCE(SUM(qty_delta), 0)::bigint AS current_qty
          FROM stock_movement
-        WHERE shop_id = $1 AND product_id = ANY($2::uuid[])
+        WHERE shop_id = $1::uuid AND product_id = ANY($2::uuid[])
         GROUP BY product_id, variant_id`,
       shopId,
       ids,
@@ -235,12 +235,12 @@ export async function todaysSalesSummary(
         COALESCE(SUM(s.total), 0) AS total,
         COALESCE((SELECT SUM(p.amount)
                     FROM payment p
-                   WHERE p.shop_id = $1
+                   WHERE p.shop_id = $1::uuid
                      AND p.paid_at >= $2 AND p.paid_at < $3
                      AND p.method = 'CASH'
                      AND p.sale_id IS NOT NULL), 0) AS cash
       FROM sale s
-      WHERE s.shop_id = $1 AND s.sold_at >= $2 AND s.sold_at < $3
+      WHERE s.shop_id = $1::uuid AND s.sold_at >= $2 AND s.sold_at < $3
       `,
       shopId,
       start,

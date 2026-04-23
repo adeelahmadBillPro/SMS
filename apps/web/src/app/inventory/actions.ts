@@ -220,7 +220,7 @@ export async function adjustStockAction(input: unknown): Promise<Result> {
     await withShop(shopId, async (tx) => {
       await assertDayOpen(tx, new Date());
       const shopRow = await tx.$queryRawUnsafe<Array<{ allow_negative_stock: boolean }>>(
-        "SELECT allow_negative_stock FROM shop WHERE id = $1",
+        "SELECT allow_negative_stock FROM shop WHERE id = $1::uuid",
         shopId,
       );
       const allowNeg = shopRow[0]?.allow_negative_stock ?? false;
@@ -229,7 +229,7 @@ export async function adjustStockAction(input: unknown): Promise<Result> {
         const cur = await tx.$queryRawUnsafe<Array<{ qty: bigint }>>(
           `SELECT COALESCE(SUM(qty_delta), 0)::bigint AS qty
              FROM stock_movement
-            WHERE shop_id = $1 AND product_id = $2
+            WHERE shop_id = $1::uuid AND product_id = $2::uuid
               AND ($3::uuid IS NULL OR variant_id = $3::uuid)`,
           shopId,
           parsed.data.productId,

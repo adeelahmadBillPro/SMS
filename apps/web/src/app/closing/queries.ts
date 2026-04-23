@@ -143,42 +143,42 @@ export async function getDaySnapshot(shopId: string, ymd: string): Promise<DaySn
     ] = await Promise.all([
       tx.$queryRawUnsafe<Array<{ total: string }>>(
         `SELECT COALESCE(SUM(amount), 0) AS total FROM payment
-           WHERE shop_id = $1 AND paid_at >= $2 AND paid_at < $3
+           WHERE shop_id = $1::uuid AND paid_at >= $2 AND paid_at < $3
              AND method = 'CASH' AND sale_id IS NOT NULL`,
         shopId, start, end,
       ),
       tx.$queryRawUnsafe<Array<{ total: string }>>(
         `SELECT COALESCE(SUM(amount), 0) AS total FROM payment
-           WHERE shop_id = $1 AND paid_at >= $2 AND paid_at < $3
+           WHERE shop_id = $1::uuid AND paid_at >= $2 AND paid_at < $3
              AND method = 'CASH' AND sale_id IS NULL AND party_type = 'CUSTOMER'`,
         shopId, start, end,
       ),
       tx.$queryRawUnsafe<Array<{ total: string }>>(
         `SELECT COALESCE(SUM(amount), 0) AS total FROM payment
-           WHERE shop_id = $1 AND paid_at >= $2 AND paid_at < $3
+           WHERE shop_id = $1::uuid AND paid_at >= $2 AND paid_at < $3
              AND method = 'CASH' AND purchase_id IS NOT NULL`,
         shopId, start, end,
       ),
       tx.$queryRawUnsafe<Array<{ total: string }>>(
         `SELECT COALESCE(SUM(amount), 0) AS total FROM payment
-           WHERE shop_id = $1 AND paid_at >= $2 AND paid_at < $3
+           WHERE shop_id = $1::uuid AND paid_at >= $2 AND paid_at < $3
              AND method = 'CASH' AND purchase_id IS NULL AND party_type = 'SUPPLIER'`,
         shopId, start, end,
       ),
       tx.$queryRawUnsafe<Array<{ total: string }>>(
         `SELECT COALESCE(SUM(amount), 0) AS total FROM expense
-           WHERE shop_id = $1 AND paid_at >= $2 AND paid_at < $3
+           WHERE shop_id = $1::uuid AND paid_at >= $2 AND paid_at < $3
              AND paid_via_cash = true`,
         shopId, start, end,
       ),
       tx.$queryRawUnsafe<Array<{ n: bigint; total: string }>>(
         `SELECT COUNT(*)::bigint AS n, COALESCE(SUM(total), 0) AS total FROM sale
-           WHERE shop_id = $1 AND sold_at >= $2 AND sold_at < $3`,
+           WHERE shop_id = $1::uuid AND sold_at >= $2 AND sold_at < $3`,
         shopId, start, end,
       ),
       tx.$queryRawUnsafe<Array<{ method: string; amount: string }>>(
         `SELECT method, COALESCE(SUM(amount), 0) AS amount FROM payment
-           WHERE shop_id = $1 AND paid_at >= $2 AND paid_at < $3
+           WHERE shop_id = $1::uuid AND paid_at >= $2 AND paid_at < $3
              AND sale_id IS NOT NULL
            GROUP BY method`,
         shopId, start, end,
@@ -188,7 +188,7 @@ export async function getDaySnapshot(shopId: string, ymd: string): Promise<DaySn
                 COALESCE(SUM(si.unit_cost * si.qty), 0) AS cost
            FROM sale_item si
            JOIN sale s ON s.id = si.sale_id
-          WHERE si.shop_id = $1 AND s.sold_at >= $2 AND s.sold_at < $3`,
+          WHERE si.shop_id = $1::uuid AND s.sold_at >= $2 AND s.sold_at < $3`,
         shopId, start, end,
       ),
       tx.$queryRawUnsafe<
@@ -199,7 +199,7 @@ export async function getDaySnapshot(shopId: string, ymd: string): Promise<DaySn
            FROM sale_item si
            JOIN sale s ON s.id = si.sale_id
            JOIN product p ON p.id = si.product_id
-          WHERE si.shop_id = $1 AND s.sold_at >= $2 AND s.sold_at < $3
+          WHERE si.shop_id = $1::uuid AND s.sold_at >= $2 AND s.sold_at < $3
           GROUP BY si.product_id, p.name
           ORDER BY revenue DESC
           LIMIT 5`,
@@ -207,12 +207,12 @@ export async function getDaySnapshot(shopId: string, ymd: string): Promise<DaySn
       ),
       tx.$queryRawUnsafe<Array<{ n: bigint; total: string }>>(
         `SELECT COUNT(*)::bigint AS n, COALESCE(SUM(total), 0) AS total FROM purchase
-           WHERE shop_id = $1 AND purchased_at >= $2 AND purchased_at < $3`,
+           WHERE shop_id = $1::uuid AND purchased_at >= $2 AND purchased_at < $3`,
         shopId, start, end,
       ),
       tx.$queryRawUnsafe<Array<{ category: string; amount: string }>>(
         `SELECT category, COALESCE(SUM(amount), 0) AS amount FROM expense
-           WHERE shop_id = $1 AND paid_at >= $2 AND paid_at < $3
+           WHERE shop_id = $1::uuid AND paid_at >= $2 AND paid_at < $3
            GROUP BY category
            ORDER BY amount DESC`,
         shopId, start, end,
@@ -286,7 +286,7 @@ export async function getDaySnapshot(shopId: string, ymd: string): Promise<DaySn
         total: cashExpense + Number(
           (await tx.$queryRawUnsafe<Array<{ t: string }>>(
             `SELECT COALESCE(SUM(amount), 0) AS t FROM expense
-               WHERE shop_id = $1 AND paid_at >= $2 AND paid_at < $3 AND paid_via_cash = false`,
+               WHERE shop_id = $1::uuid AND paid_at >= $2 AND paid_at < $3 AND paid_via_cash = false`,
             shopId, start, end,
           ))[0]?.t ?? 0,
         ),

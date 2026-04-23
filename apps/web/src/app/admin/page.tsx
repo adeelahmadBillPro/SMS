@@ -166,7 +166,7 @@ export default async function AdminPage() {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
             Quick actions
           </h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-3">
             <QuickAction
               icon={<IconUsers />}
               title="Tenants"
@@ -185,13 +185,6 @@ export default async function AdminPage() {
               subtitle={`${activeCount}/${activeCount + suspendedCount} shops up`}
               href="#"
               muted
-            />
-            <QuickAction
-              icon={<IconBook />}
-              title="Docs"
-              subtitle="SPEC, setup, roadmap"
-              href="https://github.com/adeelahmadBillPro/SMS"
-              external
             />
           </div>
         </section>

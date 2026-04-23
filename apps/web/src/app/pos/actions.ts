@@ -97,7 +97,7 @@ export async function createSaleAction(
           fbr_api_key_enc: string | null;
         }>
       >(
-        "SELECT allow_negative_stock, fbr_pos_id_enc, fbr_api_key_enc FROM shop WHERE id = $1",
+        "SELECT allow_negative_stock, fbr_pos_id_enc, fbr_api_key_enc FROM shop WHERE id = $1::uuid",
         shopId,
       );
       const allowNeg = shopRow[0]?.allow_negative_stock ?? false;
@@ -172,7 +172,7 @@ export async function createSaleAction(
         const cur = await tx.$queryRawUnsafe<Array<{ qty: bigint }>>(
           `SELECT COALESCE(SUM(qty_delta), 0)::bigint AS qty
              FROM stock_movement
-            WHERE shop_id = $1 AND product_id = $2
+            WHERE shop_id = $1::uuid AND product_id = $2::uuid
               AND ($3::uuid IS NULL OR variant_id = $3::uuid)`,
           shopId,
           productId,

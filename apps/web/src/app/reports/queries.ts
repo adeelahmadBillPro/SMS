@@ -47,10 +47,10 @@ export async function getSalesReport(shopId: string, range: DateRange): Promise<
            COALESCE(SUM(s.discount), 0) AS discount,
            COALESCE((SELECT SUM(si.unit_cost * si.qty) FROM sale_item si
                       JOIN sale s2 ON s2.id = si.sale_id
-                      WHERE s2.shop_id = $1 AND s2.sold_at >= $2 AND s2.sold_at < $3), 0) AS cogs,
+                      WHERE s2.shop_id = $1::uuid AND s2.sold_at >= $2 AND s2.sold_at < $3), 0) AS cogs,
            COALESCE(SUM(s.credit_amount), 0) AS credit
          FROM sale s
-         WHERE s.shop_id = $1 AND s.sold_at >= $2 AND s.sold_at < $3`,
+         WHERE s.shop_id = $1::uuid AND s.sold_at >= $2 AND s.sold_at < $3`,
         shopId, start, end,
       ),
       // Day bucket in Asia/Karachi. Postgres AT TIME ZONE gives us a timestamp
@@ -65,7 +65,7 @@ export async function getSalesReport(shopId: string, range: DateRange): Promise<
                 COALESCE((SELECT SUM(si.unit_cost * si.qty) FROM sale_item si
                            WHERE si.sale_id = s.id), 0) AS cogs
            FROM sale s
-          WHERE s.shop_id = $1 AND s.sold_at >= $2 AND s.sold_at < $3
+          WHERE s.shop_id = $1::uuid AND s.sold_at >= $2 AND s.sold_at < $3
           GROUP BY day
           ORDER BY day ASC`,
         shopId, start, end,
@@ -73,7 +73,7 @@ export async function getSalesReport(shopId: string, range: DateRange): Promise<
       tx.$queryRawUnsafe<Array<{ method: string; amount: string }>>(
         `SELECT method, COALESCE(SUM(amount), 0) AS amount
            FROM payment
-          WHERE shop_id = $1 AND paid_at >= $2 AND paid_at < $3 AND sale_id IS NOT NULL
+          WHERE shop_id = $1::uuid AND paid_at >= $2 AND paid_at < $3 AND sale_id IS NOT NULL
           GROUP BY method
           ORDER BY amount DESC`,
         shopId, start, end,
@@ -85,7 +85,7 @@ export async function getSalesReport(shopId: string, range: DateRange): Promise<
            FROM sale_item si
            JOIN sale s ON s.id = si.sale_id
            JOIN product p ON p.id = si.product_id
-          WHERE si.shop_id = $1 AND s.sold_at >= $2 AND s.sold_at < $3
+          WHERE si.shop_id = $1::uuid AND s.sold_at >= $2 AND s.sold_at < $3
           GROUP BY p.category
           ORDER BY revenue DESC`,
         shopId, start, end,
@@ -99,7 +99,7 @@ export async function getSalesReport(shopId: string, range: DateRange): Promise<
            FROM sale_item si
            JOIN sale s ON s.id = si.sale_id
            JOIN product p ON p.id = si.product_id
-          WHERE si.shop_id = $1 AND s.sold_at >= $2 AND s.sold_at < $3
+          WHERE si.shop_id = $1::uuid AND s.sold_at >= $2 AND s.sold_at < $3
           GROUP BY si.product_id, p.name, p.sku
           ORDER BY revenue DESC
           LIMIT 20`,
@@ -253,24 +253,24 @@ export async function getPnl(shopId: string, range: DateRange): Promise<PnlRepor
       tx.$queryRawUnsafe<Array<{ total: string; tax: string }>>(
         `SELECT COALESCE(SUM(total), 0) AS total, COALESCE(SUM(tax), 0) AS tax
            FROM sale
-          WHERE shop_id = $1 AND sold_at >= $2 AND sold_at < $3`,
+          WHERE shop_id = $1::uuid AND sold_at >= $2 AND sold_at < $3`,
         shopId, start, end,
       ),
       tx.$queryRawUnsafe<Array<{ cogs: string }>>(
         `SELECT COALESCE(SUM(si.unit_cost * si.qty), 0) AS cogs
            FROM sale_item si
            JOIN sale s ON s.id = si.sale_id
-          WHERE si.shop_id = $1 AND s.sold_at >= $2 AND s.sold_at < $3`,
+          WHERE si.shop_id = $1::uuid AND s.sold_at >= $2 AND s.sold_at < $3`,
         shopId, start, end,
       ),
       tx.$queryRawUnsafe<Array<{ total: string }>>(
         `SELECT COALESCE(SUM(amount), 0) AS total FROM expense
-          WHERE shop_id = $1 AND paid_at >= $2 AND paid_at < $3`,
+          WHERE shop_id = $1::uuid AND paid_at >= $2 AND paid_at < $3`,
         shopId, start, end,
       ),
       tx.$queryRawUnsafe<Array<{ category: string; amount: string }>>(
         `SELECT category, COALESCE(SUM(amount), 0) AS amount FROM expense
-          WHERE shop_id = $1 AND paid_at >= $2 AND paid_at < $3
+          WHERE shop_id = $1::uuid AND paid_at >= $2 AND paid_at < $3
           GROUP BY category
           ORDER BY amount DESC`,
         shopId, start, end,
@@ -432,12 +432,12 @@ export async function getTaxSummary(shopId: string, range: DateRange): Promise<T
     const [salesTaxRow, purchaseTaxRow, byRateRows, byDayRows] = await Promise.all([
       tx.$queryRawUnsafe<Array<{ total: string }>>(
         `SELECT COALESCE(SUM(tax), 0) AS total FROM sale
-          WHERE shop_id = $1 AND sold_at >= $2 AND sold_at < $3`,
+          WHERE shop_id = $1::uuid AND sold_at >= $2 AND sold_at < $3`,
         shopId, start, end,
       ),
       tx.$queryRawUnsafe<Array<{ total: string }>>(
         `SELECT COALESCE(SUM(tax), 0) AS total FROM purchase
-          WHERE shop_id = $1 AND purchased_at >= $2 AND purchased_at < $3`,
+          WHERE shop_id = $1::uuid AND purchased_at >= $2 AND purchased_at < $3`,
         shopId, start, end,
       ),
       tx.$queryRawUnsafe<Array<{ rate: string; base: string; tax: string }>>(
@@ -447,16 +447,16 @@ export async function getTaxSummary(shopId: string, range: DateRange): Promise<T
            FROM sale_item si
            JOIN sale s ON s.id = si.sale_id
            JOIN product p ON p.id = si.product_id
-          WHERE si.shop_id = $1 AND s.sold_at >= $2 AND s.sold_at < $3
+          WHERE si.shop_id = $1::uuid AND s.sold_at >= $2 AND s.sold_at < $3
           GROUP BY p.tax_rate
           ORDER BY p.tax_rate ASC`,
         shopId, start, end,
       ),
       tx.$queryRawUnsafe<Array<{ day: string; sales_tax: string; purchase_tax: string }>>(
         `SELECT d::text AS day,
-                COALESCE((SELECT SUM(tax) FROM sale WHERE shop_id = $1
+                COALESCE((SELECT SUM(tax) FROM sale WHERE shop_id = $1::uuid
                            AND (sold_at AT TIME ZONE 'Asia/Karachi')::date = d), 0) AS sales_tax,
-                COALESCE((SELECT SUM(tax) FROM purchase WHERE shop_id = $1
+                COALESCE((SELECT SUM(tax) FROM purchase WHERE shop_id = $1::uuid
                            AND (purchased_at AT TIME ZONE 'Asia/Karachi')::date = d), 0) AS purchase_tax
            FROM generate_series($2::date, $3::date, interval '1 day') AS d
           ORDER BY d ASC`,
