@@ -5,6 +5,7 @@ import { PaymentMethod, StockReason, StockStatus, withShop } from "@shopos/db";
 import type { Prisma } from "@shopos/db";
 import { Billing, Inventory } from "@shopos/core";
 import { requireShop } from "@/lib/require-shop";
+import { assertDayOpen } from "@/lib/day-immutability";
 import { getCustomerOutstanding } from "@/app/customers/queries";
 
 type Ok<T> = { ok: true; data: T };
@@ -208,8 +209,11 @@ export async function createSaleAction(
         }
       }
 
-      // ---- Create the sale header.
+      // ---- Day-immutability guard (sale lands today; cashier can't post into a closed day).
       const now = new Date();
+      await assertDayOpen(tx, now);
+
+      // ---- Create the sale header.
       const sale = await tx.sale.create({
         data: {
           shopId,

@@ -5,6 +5,7 @@ import { PaymentMethod, StockReason, StockStatus, withShop } from "@shopos/db";
 import type { Prisma } from "@shopos/db";
 import { Khata } from "@shopos/core";
 import { requireShop } from "@/lib/require-shop";
+import { assertDayOpen } from "@/lib/day-immutability";
 
 type Ok<T> = { ok: true; data: T };
 type Err = { ok: false; error: string; fieldErrors?: Record<string, string[]> };
@@ -106,6 +107,7 @@ export async function createPurchaseAction(
       const creditToSupplier = Math.max(0, Math.round((totals.total - paidAtReceive) * 100) / 100);
 
       const purchasedAt = parsed.data.purchasedAt ?? new Date();
+      await assertDayOpen(tx, purchasedAt);
 
       // ---- Create purchase header + items.
       const purchase = await tx.purchase.create({

@@ -17,8 +17,9 @@ const NAV: NavItem[] = [
   { label: "Purchases", href: "/purchases" },
   { label: "Customers", href: "/customers" },
   { label: "Suppliers", href: "/suppliers" },
+  { label: "Expenses", href: "/expenses" },
+  { label: "Closing", href: "/closing" },
   { label: "Reports", href: "/reports", soon: true },
-  { label: "Closing", href: "/closing", soon: true },
   { label: "Settings", href: "/settings", soon: true },
 ];
 

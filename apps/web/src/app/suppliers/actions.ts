@@ -5,6 +5,7 @@ import { PaymentMethod, withShop } from "@shopos/db";
 import type { Prisma } from "@shopos/db";
 import { Khata } from "@shopos/core";
 import { requireShop } from "@/lib/require-shop";
+import { assertDayOpen } from "@/lib/day-immutability";
 
 type Ok<T> = { ok: true; data: T };
 type Err = { ok: false; error: string; fieldErrors?: Record<string, string[]> };
@@ -59,6 +60,7 @@ export async function recordSupplierPaymentAction(input: unknown): Promise<VoidR
       if (!supplier) throw new Error("Supplier not found");
 
       const paidAt = parsed.data.paidAt ?? new Date();
+      await assertDayOpen(tx, paidAt);
 
       await tx.payment.create({
         data: {

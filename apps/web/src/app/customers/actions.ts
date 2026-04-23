@@ -5,6 +5,7 @@ import { PaymentMethod, withShop } from "@shopos/db";
 import type { Prisma } from "@shopos/db";
 import { Billing, Khata } from "@shopos/core";
 import { requireShop } from "@/lib/require-shop";
+import { assertDayOpen } from "@/lib/day-immutability";
 
 type Result<T = undefined> =
   | (T extends undefined ? { ok: true } : { ok: true; data: T })
@@ -57,6 +58,7 @@ export async function recordCustomerPaymentAction(input: unknown): Promise<Resul
       const customer = await tx.customer.findUnique({ where: { id: parsed.data.customerId } });
       if (!customer) throw new Error("Customer not found");
       const paidAt = parsed.data.paidAt ?? new Date();
+      await assertDayOpen(tx, paidAt);
 
       await tx.payment.create({
         data: {

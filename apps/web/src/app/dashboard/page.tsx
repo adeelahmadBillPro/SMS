@@ -5,39 +5,80 @@ import { countLowStock, listProducts } from "@/app/inventory/queries";
 import { todaysSalesSummary } from "@/app/pos/queries";
 import { totalCustomerReceivables } from "@/app/customers/queries";
 import { totalSupplierDues } from "@/app/suppliers/queries";
-import { formatPKR } from "@shopos/core";
+import { getCashAndBankBalance, getClosingByDate } from "@/app/closing/queries";
+import { Closing, formatPKR } from "@shopos/core";
 
 export default async function DashboardPage() {
   const { session, membership } = await requireShop();
+  const today = Closing.pktDateString(new Date());
 
-  const [products, lowCount, today, receivables, dues] = await Promise.all([
-    listProducts(membership.shopId, {}),
-    countLowStock(membership.shopId),
-    todaysSalesSummary(membership.shopId),
-    totalCustomerReceivables(membership.shopId),
-    totalSupplierDues(membership.shopId),
-  ]);
+  const [products, lowCount, todaySales, receivables, dues, balances, todayClosing] =
+    await Promise.all([
+      listProducts(membership.shopId, {}),
+      countLowStock(membership.shopId),
+      todaysSalesSummary(membership.shopId),
+      totalCustomerReceivables(membership.shopId),
+      totalSupplierDues(membership.shopId),
+      getCashAndBankBalance(membership.shopId),
+      getClosingByDate(membership.shopId, today),
+    ]);
 
   const activeProducts = products.filter((p) => p.isActive);
   const totalUnits = activeProducts.reduce((a, p) => a + Math.max(0, p.currentQty), 0);
   const stockValue = activeProducts.reduce((a, p) => a + p.currentQty * p.cost, 0);
   const lowItems = activeProducts.filter((p) => p.isLow).slice(0, 6);
+  const dayClosed = !!todayClosing && !todayClosing.reversed;
 
   return (
     <AppShell email={session.email} contextLabel={membership.shopName}>
       <div className="space-y-8">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
-          <p className="mt-1 text-sm text-slate-600">Your shop at a glance.</p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
+            <p className="mt-1 text-sm text-slate-600">Your shop at a glance.</p>
+          </div>
+          {dayClosed ? (
+            <Link
+              href={`/closing/${today}`}
+              className="inline-flex h-10 items-center gap-2 rounded-md bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+              Day closed — view report
+            </Link>
+          ) : (
+            <Link href="/closing">
+              <span className="inline-flex h-10 items-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800">
+                Close today
+              </span>
+            </Link>
+          )}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
+            title="Cash in hand"
+            value={formatPKR(balances.cashInHand)}
+            note="Live ledger balance"
+          />
+          <StatCard
+            title="Bank balance"
+            value={formatPKR(balances.bankBalance)}
+          />
+          <StatCard
             title="Today's sales"
-            value={formatPKR(today.total)}
-            note={`${today.count} bill${today.count === 1 ? "" : "s"} · cash ${formatPKR(today.cash)}`}
+            value={formatPKR(todaySales.total)}
+            note={`${todaySales.count} bill${todaySales.count === 1 ? "" : "s"} · cash ${formatPKR(todaySales.cash)}`}
             href="/pos"
           />
+          <StatCard
+            title="Needs reorder"
+            value={lowCount.toLocaleString("en-PK")}
+            accent={lowCount > 0}
+            href={lowCount > 0 ? "/inventory?low=1" : undefined}
+            tone="amber"
+          />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Customers owe"
             value={formatPKR(receivables)}
@@ -53,19 +94,8 @@ export default async function DashboardPage() {
             accent={dues > 0}
             tone="rose"
           />
-          <StatCard
-            title="Needs reorder"
-            value={lowCount.toLocaleString("en-PK")}
-            accent={lowCount > 0}
-            href={lowCount > 0 ? "/inventory?low=1" : undefined}
-            tone="amber"
-          />
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-3">
           <StatCard title="Products" value={activeProducts.length.toLocaleString("en-PK")} href="/inventory" />
-          <StatCard title="Units in stock" value={totalUnits.toLocaleString("en-PK")} />
-          <StatCard title="Stock value (cost)" value={formatPKR(stockValue)} />
+          <StatCard title="Stock value" value={formatPKR(stockValue)} note={`${totalUnits.toLocaleString("en-PK")} units`} />
         </div>
 
         <section className="grid gap-6 lg:grid-cols-3">

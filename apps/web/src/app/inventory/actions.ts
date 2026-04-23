@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { StockReason, StockStatus, withShop } from "@shopos/db";
 import { Inventory } from "@shopos/core";
 import { requireShop } from "@/lib/require-shop";
+import { assertDayOpen } from "@/lib/day-immutability";
 
 type Ok<T = undefined> = T extends undefined ? { ok: true } : { ok: true; data: T };
 type Err = { ok: false; error: string; fieldErrors?: Record<string, string[]> };
@@ -145,6 +146,7 @@ export async function receiveStockAction(input: unknown): Promise<Result> {
 
   try {
     await withShop(shopId, async (tx) => {
+      await assertDayOpen(tx, new Date());
       const product = await tx.product.findUnique({
         where: { id: parsed.data.productId },
         select: { id: true, hasImei: true, hasSerial: true },
@@ -216,6 +218,7 @@ export async function adjustStockAction(input: unknown): Promise<Result> {
 
   try {
     await withShop(shopId, async (tx) => {
+      await assertDayOpen(tx, new Date());
       const shopRow = await tx.$queryRawUnsafe<Array<{ allow_negative_stock: boolean }>>(
         "SELECT allow_negative_stock FROM shop WHERE id = $1",
         shopId,
