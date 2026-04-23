@@ -19,16 +19,26 @@ export interface AppMembership {
 
 /**
  * Resolve the current session. Cached per request (React cache).
+ *
+ * Better-Auth's default session.user shape doesn't expose our custom `role`
+ * column reliably, so we always read it from the user row. Tiny query;
+ * memoised by React cache() so it runs once per request.
  */
 export const getSession = cache(async (): Promise<AppSession | null> => {
   const h = await headers();
   const sess = await auth.api.getSession({ headers: h });
   if (!sess?.user) return null;
+
+  const row = await prismaAdmin.user.findUnique({
+    where: { id: sess.user.id },
+    select: { role: true, emailVerified: true },
+  });
+
   return {
     userId: sess.user.id,
     email: sess.user.email,
-    role: (sess.user as { role?: UserRole }).role ?? ("USER" as UserRole),
-    emailVerified: sess.user.emailVerified ?? false,
+    role: (row?.role ?? "USER") as UserRole,
+    emailVerified: row?.emailVerified ?? sess.user.emailVerified ?? false,
   };
 });
 

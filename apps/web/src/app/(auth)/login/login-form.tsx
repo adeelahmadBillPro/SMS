@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Field } from "@/components/ui/field";
 import { loginAction } from "./action";
 
@@ -60,10 +61,9 @@ export function LoginForm() {
         </Field>
 
         <Field id="password" label="Password" error={fieldErrors.password}>
-          <Input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
             autoComplete="current-password"
             error={Boolean(fieldErrors.password)}
             required

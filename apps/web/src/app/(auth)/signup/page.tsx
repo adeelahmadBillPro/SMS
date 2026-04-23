@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Field } from "@/components/ui/field";
 import { signupAction } from "./action";
 
@@ -76,12 +77,12 @@ export default function SignupPage() {
           hint="10 characters minimum"
           error={fieldErrors.password}
         >
-          <Input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
             autoComplete="new-password"
             minLength={10}
+            showStrength
             error={Boolean(fieldErrors.password)}
             required
           />

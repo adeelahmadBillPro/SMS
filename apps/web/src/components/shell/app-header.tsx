@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { logoutAction } from "@/app/(auth)/logout/action";
-import { Button } from "@/components/ui/button";
+import { UserMenu } from "./user-menu";
 
 interface AppHeaderProps {
   email: string;
@@ -10,12 +10,12 @@ interface AppHeaderProps {
 
 export function AppHeader({ email, contextLabel, adminBadge }: AppHeaderProps) {
   return (
-    <header className="border-b border-slate-200 bg-white">
+    <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-6">
         <div className="flex min-w-0 items-center gap-3">
           <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight text-slate-900 hover:opacity-80"
+            href={adminBadge ? "/admin" : "/dashboard"}
+            className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight text-slate-900 transition hover:opacity-80"
           >
             <ShopOSMark />
             <span>ShopOS</span>
@@ -32,12 +32,7 @@ export function AppHeader({ email, contextLabel, adminBadge }: AppHeaderProps) {
             </>
           ) : null}
         </div>
-        <div className="flex items-center gap-3">
-          <span className="hidden truncate text-xs text-slate-500 sm:inline">{email}</span>
-          <form action={logoutAction}>
-            <Button variant="ghost" size="sm">Sign out</Button>
-          </form>
-        </div>
+        <UserMenu email={email} adminBadge={adminBadge} logoutAction={logoutAction} />
       </div>
     </header>
   );

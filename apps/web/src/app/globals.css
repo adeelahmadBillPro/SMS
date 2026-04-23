@@ -78,6 +78,63 @@ html, body {
 .scrollbar-none::-webkit-scrollbar { display: none; }
 .scrollbar-none { scrollbar-width: none; }
 
+/* ============================================================
+ * Landing page flourishes — kept here (not per-component) so
+ * hot-reload doesn't shake them loose. Only the marketing
+ * surface consumes these utilities.
+ * ============================================================ */
+
+/* Marquee — infinite horizontal scroll for social-proof strip */
+@keyframes shopos-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: shopos-marquee 40s linear infinite;
+}
+
+/* Gradient shift — slow gradient movement under the headline */
+@keyframes shopos-gradient-shift {
+  0%   { background-position:   0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position:   0% 50%; }
+}
+.animate-gradient-shift {
+  background-size: 200% 200%;
+  animation: shopos-gradient-shift 8s ease-in-out infinite;
+}
+
+/* Blinking caret for the typewriter */
+@keyframes shopos-caret {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.animate-caret { animation: shopos-caret 1s steps(2, end) infinite; }
+
+/* Subtle float for decorative blobs */
+@keyframes shopos-float {
+  0%, 100% { transform: translate(0, 0); }
+  50%      { transform: translate(12px, -14px); }
+}
+.animate-float-slow { animation: shopos-float 9s ease-in-out infinite; }
+
+/* One-shot shake — used for attention-grabbing CTAs */
+@keyframes shopos-wiggle {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(-2.5deg); }
+  40% { transform: rotate(2deg); }
+  60% { transform: rotate(-1.5deg); }
+  80% { transform: rotate(1deg); }
+}
+.hover\:animate-wiggle:hover { animation: shopos-wiggle 0.6s ease-in-out; }
+
+/* Soft pulse glow for the highlighted pricing card */
+@keyframes shopos-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+  50%      { box-shadow: 0 0 0 8px rgba(79, 70, 229, 0.08); }
+}
+.animate-glow-pulse { animation: shopos-glow-pulse 2.8s ease-in-out infinite; }
+
 /*
  * Print: the receipt page renders edge-to-edge, no app chrome, 80mm-friendly.
  * Media queries target both 80mm thermal and A4. On browsers with "Save as
